@@ -36,19 +36,25 @@ body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,Bl
 .kpi .v{font-size:21px;font-weight:700;letter-spacing:-.01em}
 .kpi .u{font-size:12px;color:var(--mut);font-weight:500;margin-left:2px}
 .kpi .d{font-size:11.5px;margin-top:5px;color:var(--mut)}
-.kpi .up{color:var(--up)}.kpi .dn{color:var(--dn)}
+.kpi .read{font-size:11px;color:var(--acc);margin-top:3px;font-weight:600}
+.kpilegend{font-size:11.5px;color:var(--mut);margin:0 0 11px}.kpilegend b{color:var(--txt)}
+.dpill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:8px;cursor:default}
+.dpill.up{background:#e7f6ef;color:var(--up)}.dpill.dn{background:#fdecea;color:var(--dn)}
+.dpill.flat{background:var(--chip);color:var(--mut)}.dpill.mut{background:var(--chip);color:var(--mut2)}
+.dpill.new{background:#eef4ff;color:var(--acc)}.dpill.turn{background:#e7f6ef;color:var(--up)}
 .kpi .tagq{font-size:10px;color:var(--warn);background:var(--warnbg);padding:1px 6px;border-radius:8px;margin-left:5px}
 .nopaybox{background:#fafbfc;border:1px dashed var(--line);border-radius:11px;padding:18px;text-align:center;color:var(--mut)}
 .nopaybox b{color:var(--txt)}
-/* C trend */
+/* shared table (D/E/G) */
 table{border-collapse:collapse;width:100%;font-size:12.5px}
+.rel{font-size:10.5px;color:var(--mut2);font-weight:400}
+/* C trend */
 .trend th,.trend td{border-bottom:1px solid var(--line2);padding:8px 10px;text-align:right}
 .trend th{color:var(--mut);font-weight:600;font-size:11.5px}
 .trend td.l,.trend th.l{text-align:left}
-.spark{display:inline-flex;align-items:flex-end;gap:3px;height:22px}
-.spark i{width:7px;background:var(--accbg);border-radius:2px 2px 0 0;display:inline-block}
+.spark{display:inline-flex;align-items:flex-end;gap:8px;height:36px}
+.spark i{width:10px;background:var(--accbg);border-radius:2px 2px 0 0;display:inline-block}
 .spark i.cur{background:var(--acc)}
-.rel{font-size:10px;color:var(--mut2)}
 /* generic raw/aux tables */
 .gt{margin-top:8px;overflow-x:auto}
 .gt table{font-size:12px}.gt th,.gt td{border:1px solid var(--line);padding:5px 8px;text-align:center}
@@ -81,6 +87,11 @@ const KCARD=[['cash_dps','주당 현금배당금','원'],['payout_consol','현�
 const KTREND=[['cash_dps','주당 현금배당금','원'],['payout_consol','현금배당성향','%'],['cash_yield','현금배당수익률','%'],['cash_div_total','현금배당금총액','백만원']];
 function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function num(v){if(v==null)return null;const n=parseFloat(String(v).replace(/[,%\s]/g,''));return isNaN(n)?null:n;}
+function readMil(s){const n=num(s);if(n==null)return '';const eok=n/100;   // 백만원 → 조/억 환산
+  if(Math.abs(eok)>=10000){const jo=Math.floor(eok/10000);const rem=Math.round(eok%10000);return jo.toLocaleString()+'조'+(rem?' '+rem.toLocaleString()+'억':'')+'원';}
+  if(Math.abs(eok)>=100)return Math.round(eok).toLocaleString()+'억원';
+  if(Math.abs(eok)>=1)return (Math.round(eok*10)/10).toLocaleString()+'억원';
+  return Math.round(n).toLocaleString()+'백만원';}
 function val(r,key,sh){ // value map for a key under share
   const bys=r.metrics_by_share[key];
   if(bys&&bys[sh]) return bys[sh];
@@ -97,19 +108,21 @@ function buildSel(){
   D.forEach((r,i)=>{const o=document.createElement('option');o.value=i;o.textContent=r.company+(r.dividend?'  · 배당':'  · 무배당');if(i===idx)o.selected=true;sel.appendChild(o);});
   sel.onchange=e=>{idx=+e.target.value;share='보통주';render();};
 }
-function deltaHTML(cur,prev,unit){
-  const a=num(cur),b=num(prev);
-  if(a==null||b==null) return '<span class="muted">전기 '+esc(prev??'–')+'</span>';
-  const d=a-b; const pct = b!==0? (d/Math.abs(b)*100):null;
-  const cls=d>0?'up':(d<0?'dn':'');const ar=d>0?'▲':(d<0?'▼':'–');
-  let chg = (unit==='%')? (d>0?'+':'')+d.toFixed(2)+'pp' : ((pct!=null)?(pct>0?'+':'')+pct.toFixed(1)+'%':'');
-  return '<span class="'+cls+'">'+ar+' '+chg+'</span> <span class="muted">전기 '+esc(prev)+'</span>';
+function deltaPill(cur,prev,unit){  // 전기 대비: pill(화살표+색) + title 툴팁(전기→당기)
+  const a=num(cur),b=num(prev); const fp=v=>(unit==='백만원'?readMil(v):esc(v));
+  if(a==null) return '<span class="dpill mut" title="당기 값 없음">당기 –</span>';
+  if(b==null) return '<span class="dpill new" title="전기 값 없음 · 신규">신규</span>';
+  if(b<0&&a>=0) return '<span class="dpill turn" title="전기 '+fp(prev)+' → 당기 '+fp(cur)+' · 흑자전환">흑자전환</span>';
+  if(b===0&&a>0) return '<span class="dpill new" title="전기 0 → 당기 '+fp(cur)+' · 신규">신규</span>';
+  const d=a-b; const dir=d>0?'up':(d<0?'dn':'flat'); const ar=d>0?'▲':(d<0?'▼':'–');
+  const chg=(unit==='%')? ((d>0?'+':'')+d.toFixed(2)+'%p')
+                        : ((d>0?'+':'')+(d/Math.abs(b)*100).toFixed(1)+'%');
+  return '<span class="dpill '+dir+'" title="전기 '+fp(prev)+' → 당기 '+fp(cur)+' ('+chg+')">'+ar+' '+chg+'</span>';
 }
 function sparkRow(vals){
   const nums=vals.map(num); const mx=Math.max(...nums.map(v=>v==null?0:Math.abs(v)),1);
   let h='<span class="spark">';
-  // oldest→newest = 전전기,전기,당기  (reverse of periods which is 당기,전기,전전기)
-  [2,1,0].forEach(i=>{const v=nums[i];const hgt=v==null?2:Math.max(3,Math.abs(v)/mx*22);h+='<i class="'+(i===0?'cur':'')+'" style="height:'+hgt+'px"></i>';});
+  [2,1,0].forEach(i=>{const v=nums[i];const hgt=v==null?2:Math.max(3,Math.abs(v)/mx*36);h+='<i class="'+(i===0?'cur':'')+'" style="height:'+hgt+'px"></i>';});
   return h+'</span>';
 }
 function genTable(grid){
@@ -139,14 +152,16 @@ function render(){
   if(!r.dividend){
     h+='<div class="nopaybox"><b>당기 무배당</b><br>당기 사업연도에 현금·주식 배당을 실시하지 않았습니다. 과거 이력은 아래 참고.</div>';
   }else{
+    h+='<div class="kpilegend">당기 '+esc(per[0])+' 기준 · 색 배지 = <b>전기 대비 변화</b></div>';
     h+='<div class="kpis">';
     KCARD.forEach(([k,lab,unit])=>{
       const vm=val(r,k,share)||{};
       const cur=vm[per[0]], prev=vm[per[1]];
-      const isYield=(k==='cash_yield');
+      const isYield=(k==='cash_yield'), isMil=(unit==='백만원'), has=(cur&&cur!=='-');
+      const vHtml=has?(isMil?esc(readMil(cur)):esc(cur)+'<span class="u">'+unit+'</span>'):'<span class="null">–</span>';
       h+='<div class="kpi"><div class="k">'+lab+(isYield?'<span class="tagq">공시기준</span>':'')+'</div>'+
-         '<div class="v">'+(cur&&cur!=='-'?esc(cur):'<span class="null">–</span>')+(cur&&cur!=='-'?'<span class="u">'+unit+'</span>':'')+'</div>'+
-         '<div class="d">'+deltaHTML(cur,prev,unit)+'</div></div>';
+         '<div class="v">'+vHtml+'</div>'+
+         '<div class="d">'+deltaPill(cur,prev,unit)+'</div></div>';
     });
     h+='</div>';
   }
@@ -157,8 +172,8 @@ function render(){
   h+='<table class="trend"><tr><th class="l">지표</th><th>'+P[0]+' <span class="rel">'+esc(per[0])+'</span></th><th>'+P[1]+' <span class="rel">'+esc(per[1])+'</span></th><th>'+P[2]+' <span class="rel">'+esc(per[2])+'</span></th><th>추이</th></tr>';
   KTREND.forEach(([k,lab,unit])=>{
     const vm=val(r,k,share)||{}; const vs=[vm[per[0]],vm[per[1]],vm[per[2]]];
-    h+='<tr><td class="l">'+lab+' <span class="muted">('+unit+')</span></td>'+
-       vs.map(v=>'<td>'+(v&&v!=='-'?esc(v):'<span class="null">–</span>')+'</td>').join('')+
+    h+='<tr><td class="l">'+lab+' <span class="muted">('+(unit==='백만원'?'원':unit)+')</span></td>'+
+       vs.map(v=>'<td>'+(v&&v!=='-'?(unit==='백만원'?esc(readMil(v)):esc(v)):'<span class="null">–</span>')+'</td>').join('')+
        '<td>'+sparkRow(vs)+'</td></tr>';
   });
   h+='</table></div>';
