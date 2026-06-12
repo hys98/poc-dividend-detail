@@ -169,9 +169,9 @@ function render(){
       const cur=vm[per[0]], prev=vm[per[1]];
       const isYield=(k==='cash_yield'), isMil=(unit==='백만원'), has=(cur&&cur!=='-');
       const isSingle=!!(r.metrics_by_share[k]&&r.metrics_by_share[k]['단일']);
-      const showCo=isSingle&&share!=='보통주';   // 우선주 모드에서 종류무관(회사전체) 지표
+      const showCo=isSingle&&avail.length>0;   // 종류 토글이 있는 회사면 두 모드 모두 표시
       const vHtml=has?(isMil?esc(readMil(cur)):esc(cur)+'<span class="u">'+unit+'</span>'):'<span class="null">–</span>';
-      h+='<div class="kpi"><div class="k">'+lab+(isYield?'<span class="tagq">공시기준</span>':'')+(showCo?'<span class="tagc">회사 전체</span>':'')+'</div>'+
+      h+='<div class="kpi"><div class="k">'+lab+(isYield?'<span class="tagq">공시기준</span>':'')+(showCo?'<span class="tagc">공통</span>':'')+'</div>'+
          '<div class="v">'+vHtml+'</div>'+
          '<div class="d">'+deltaPill(cur,prev,unit)+'</div></div>';
     });
